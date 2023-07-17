@@ -1,0 +1,7 @@
+results/
+env/
+7B_converted/
+data/
+finetuned_bert/
+*.bin
+*.csv
