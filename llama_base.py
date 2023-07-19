@@ -17,7 +17,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from imdb_data import *
 
-
 class Llama_Embeddings:
     def __init__(self):
         # logging configuration for better code monitoring
@@ -35,7 +34,7 @@ class Llama_Embeddings:
         PATH_TO_CONVERTED_WEIGHTS = "./7B_converted/"
 
         logging.info('loading dataset')
-        self.train_data, self.test_data = get_smiles()
+        self.train_data, self.test_data = get_drugdiscription()
 
         # Use GPU runtime an High_RAM before run this pieace of code
         # Default CUDA device
@@ -53,15 +52,15 @@ class Llama_Embeddings:
         self.tokenizer = LlamaTokenizer.from_pretrained(
             PATH_TO_CONVERTED_WEIGHTS
         )
+        
         embeddings_train, embeddings_test = self.get_embeddings(
             True, False, save_embeddings=True)
 
         if args.Plot:
-            self.plott_embeddings(embeddings_test)
+            self.plot_embeddings(embeddings_test)
 
     def get_embeddings(self, train, test, save_embeddings):
         logging.info('encoding data and generating embeddings for test/train')
-
         '''
             train: T/F value checks if we should generate embeddings for train data
             test: T/F value checks if we should generate embeddings for train data
@@ -71,7 +70,7 @@ class Llama_Embeddings:
         if train:
             for data_row in tqdm(self.train_data):
                 # print(data_row)
-                tokens = self.tokenizer(data_row['SMILES'])
+                tokens = self.tokenizer(data_row['Discription'])
                 input_ids = tokens['input_ids']
 
                 # Obtain sentence embedding
@@ -81,13 +80,13 @@ class Llama_Embeddings:
                         torch.LongTensor([input_ids]))
                     embedding = torch.mean(
                         embedding[0], 0).cpu().detach()
-                    # print(review_embedding.shape)
+
                     embeddings_train.append(embedding)
 
         embeddings_test = []
         if test:
-            for i, review in enumerate(self.test_data):
-                tokens = self.tokenizer(review['text'])
+            for data_row in tqdm(self.test_data):
+                tokens = self.tokenizer(data_row['text'])
                 input_ids = tokens['input_ids']
 
                 # Obtain sentence embedding
@@ -104,21 +103,21 @@ class Llama_Embeddings:
             train_data = pd.concat([pd.DataFrame(self.train_data), pd.DataFrame(embeddings_train)], axis=1)
             # Save the scores to a CSV file
             print(train_data.head())
-            train_data.to_csv('results/embeddings/llama_base_SMILES_embeddings.csv', sep='\t')
+            train_data.to_csv('results/embeddings/llama_base_Discription_embeddings.csv', sep='\t')
 
         return embeddings_train, embeddings_test
 
-    def plott_embeddings(self, review_embeddings_test):
+    def plot_embeddings(self, embeddings_test):
         logging.info('creating plot')
         # Perform dimensionality reduction using PCA
         pca = PCA(n_components=2)
-        review_embeddings_pca = pca.fit_transform(review_embeddings_test)
+        embeddings_pca = pca.fit_transform(embeddings_test)
 
         # Plot the reduced-dimensional embeddings
-        for i, review in enumerate(self.test_data):
-            color = 'red' if review['label'] else 'blue'
-            plt.scatter(review_embeddings_pca[i, 0],
-                        review_embeddings_pca[i, 1], color=color)
+        for i, data_row in enumerate(self.test_data):
+            color = 'red' if data_row['label'] else 'blue'
+            plt.scatter(embeddings_pca[i, 0],
+                        embeddings_pca[i, 1], color=color)
 
         plt.title("Sentence Embeddings (PCA)")
         plt.xlabel("Principal Component 1")
@@ -127,36 +126,36 @@ class Llama_Embeddings:
 
         # Perform dimensionality reduction using TSNE
         tsne = TSNE(n_components=2)
-        review_embeddings_tsne = torch.stack(review_embeddings_test)
-        review_embeddings_tsne = tsne.fit_transform(review_embeddings_tsne)
+        embeddings_tsne = torch.stack(embeddings_test)
+        embeddings_tsne = tsne.fit_transform(embeddings_tsne)
 
         # Plot the reduced-dimensional embeddings
-        for i, review in enumerate(self.test_data):
-            color = 'red' if review['label'] else 'blue'
-            plt.scatter(review_embeddings_tsne[i, 0],
-                        review_embeddings_tsne[i, 1], color=color)
+        for i, data_row in enumerate(self.test_data):
+            color = 'red' if data_row['label'] else 'blue'
+            plt.scatter(embeddings_tsne[i, 0],
+                        embeddings_tsne[i, 1], color=color)
 
         plt.title("Sentence Embeddings (TSNE)")
         plt.xlabel("Principal Component 1")
         plt.ylabel("Principal Component 2")
         plt.savefig('llama_base_tsne.png')
 
-    def evaluate_embeddings(self, review_embeddings_train, review_embeddings_test):
+    def evaluate_embeddings(self, embeddings_train, embeddings_test):
         logging.info('classification using SVM')
         svm = SVC()
 
         train_labels = []
-        for review in self.train_data:
-            train_labels.append(review['label'])
+        for data_row in self.train_data:
+            train_labels.append(data_row['label'])
 
         test_labels = []
-        for review in self.test_data:
-            test_labels.append(review['label'])
+        for data_row in self.test_data:
+            test_labels.append(data_row['label'])
 
-        svm.fit(review_embeddings_train, train_labels)
+        svm.fit(embeddings_train, train_labels)
 
         # Make predictions on the test data
-        y_pred = svm.predict(review_embeddings_test)
+        y_pred = svm.predict(embeddings_test)
 
         # Calculate F1 and accuracy score
         f1 = f1_score(test_labels, y_pred)
@@ -165,8 +164,8 @@ class Llama_Embeddings:
         # experiment descriptions
         scores = {
             'Data': 'IMDB',
-            'Data Size Test': len(review_embeddings_test),
-            'Data Size Train': len(review_embeddings_train),
+            'Data Size Test': len(embeddings_test),
+            'Data Size Train': len(embeddings_train),
             'F1 score': f1,
             'Accuracy': accuracy
         }
