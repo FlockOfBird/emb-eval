@@ -1,5 +1,39 @@
-from datasets import load_dataset
+from datasets import load_dataset, DatasetDict, Dataset
 import pandas as pd
+
+
+def get_sample_data():
+    dataset_train = {
+        'text': [
+            'I hate cats',
+            'The sky is blue',
+            'OpenAI is amazing',
+            'The sun is shining',
+            'Pizza tastes awful',
+            'I do not like reading books',
+            'The cat is sleeping',
+            'Music brings joy',
+            'Coding is the worst',
+            'The dog is barking'
+        ],
+        'label': [0, 1, 1, 1, 0, 0, 1, 1, 0, 0]
+    }
+    dataset_test = {
+        'text': [
+            'I feel sick',
+            'The movie is beautiful'
+        ],
+        'label': [0, 1]
+    }
+    df_train = pd.DataFrame(dataset_train)
+    df_test = pd.DataFrame(dataset_test)
+
+    dataset = DatasetDict({
+        "train": Dataset.from_pandas(df_train),
+        "test": Dataset.from_pandas(df_test)
+    })
+
+    return dataset["train"], dataset["test"]
 
 
 def get_imdb():

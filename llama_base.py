@@ -6,7 +6,9 @@ from tqdm import tqdm
 import torch
 from transformers import LlamaTokenizer, LlamaForCausalLM, LlamaConfig
 
+import tensorflow as tf
 import numpy as np
+import pandas as pd
 
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
@@ -15,7 +17,7 @@ from sklearn.metrics import f1_score, accuracy_score
 from sklearn.svm import SVC
 from sklearn.metrics.pairwise import cosine_similarity
 
-from imdb_data import *
+from data import *
 
 class Llama_Embeddings:
     def __init__(self):
@@ -34,7 +36,7 @@ class Llama_Embeddings:
         PATH_TO_CONVERTED_WEIGHTS = "./7B_converted/"
 
         logging.info('loading dataset')
-        self.train_data, self.test_data = get_drugdiscription()
+        self.train_data, self.test_data = get_sample_data()
 
         # Use GPU runtime an High_RAM before run this pieace of code
         # Default CUDA device
@@ -52,51 +54,49 @@ class Llama_Embeddings:
         self.tokenizer = LlamaTokenizer.from_pretrained(
             PATH_TO_CONVERTED_WEIGHTS
         )
-        
-        embeddings_train, embeddings_test = self.get_embeddings(
-            True, False, save_embeddings=True)
+
+        # self.test_embeddings()
+
+        embeddings_train, embeddings_test = self.get_embeddings(save_embeddings=False)
 
         if args.Plot:
-            self.plot_embeddings(embeddings_test)
+            # self.plot_embeddings(embeddings_test, self.test_data)
+            self.plot_embeddings(embeddings_train, self.train_data)
 
-    def get_embeddings(self, train, test, save_embeddings):
+    def get_embeddings(self, save_embeddings):
         logging.info('encoding data and generating embeddings for test/train')
         '''
-            train: T/F value checks if we should generate embeddings for train data
-            test: T/F value checks if we should generate embeddings for train data
             save_embeddings: T/F value to save the model in results directory
         '''
         embeddings_train = []
-        if train:
-            for data_row in tqdm(self.train_data):
-                # print(data_row)
-                tokens = self.tokenizer(data_row['Discription'])
-                input_ids = tokens['input_ids']
+        for data_row in tqdm(self.train_data):
+            # print(data_row)
+            tokens = self.tokenizer(data_row['text'])
+            input_ids = tokens['input_ids']
 
-                # Obtain sentence embedding
-                with torch.no_grad():
-                    input_embeddings = self.model.get_input_embeddings()
-                    embedding = input_embeddings(
-                        torch.LongTensor([input_ids]))
-                    embedding = torch.mean(
-                        embedding[0], 0).cpu().detach()
+            # Obtain sentence embedding
+            with torch.no_grad():
+                input_embeddings = self.model.get_input_embeddings()
+                embedding = input_embeddings(
+                    torch.LongTensor([input_ids]))
+                embedding = torch.mean(
+                    embedding[0], 0).cpu().detach()
 
-                    embeddings_train.append(embedding)
+                embeddings_train.append(embedding)
 
         embeddings_test = []
-        if test:
-            for data_row in tqdm(self.test_data):
-                tokens = self.tokenizer(data_row['text'])
-                input_ids = tokens['input_ids']
+        for data_row in tqdm(self.test_data):
+            tokens = self.tokenizer(data_row['text'])
+            input_ids = tokens['input_ids']
 
-                # Obtain sentence embedding
-                with torch.no_grad():
-                    input_embeddings = self.model.get_input_embeddings()
-                    embedding = input_embeddings(
-                        torch.LongTensor([input_ids]))
-                    embedding = torch.mean(
-                        embedding[0], 0).cpu().detach()
-                    embeddings_test.append(embedding)
+            # Obtain sentence embedding
+            with torch.no_grad():
+                input_embeddings = self.model.get_input_embeddings()
+                embedding = input_embeddings(
+                    torch.LongTensor([input_ids]))
+                embedding = torch.mean(
+                    embedding[0], 0).cpu().detach()
+                embeddings_test.append(embedding)
 
         if save_embeddings:
             embeddings_train = np.array(embeddings_train)
@@ -107,38 +107,45 @@ class Llama_Embeddings:
 
         return embeddings_train, embeddings_test
 
-    def plot_embeddings(self, embeddings_test):
+    def plot_embeddings(self, embeddings, labeled_data):
         logging.info('creating plot')
         # Perform dimensionality reduction using PCA
         pca = PCA(n_components=2)
-        embeddings_pca = pca.fit_transform(embeddings_test)
+
+        embeddings_pca = pca.fit_transform(embeddings)
 
         # Plot the reduced-dimensional embeddings
-        for i, data_row in enumerate(self.test_data):
+        for i, data_row in enumerate(labeled_data):
             color = 'red' if data_row['label'] else 'blue'
             plt.scatter(embeddings_pca[i, 0],
-                        embeddings_pca[i, 1], color=color)
+                        embeddings_pca[i, 1], color=color, label=data_row['text'])
+            plt.annotate(text=data_row['text'],
+                         xy=(embeddings_pca[i, 0], embeddings_pca[i, 1]))
 
+        # plt.legend()
         plt.title("Sentence Embeddings (PCA)")
         plt.xlabel("Principal Component 1")
         plt.ylabel("Principal Component 2")
-        plt.savefig('llama_base_pca.png')
+        plt.savefig('results/test_llama_base_pca.png')
 
         # Perform dimensionality reduction using TSNE
         tsne = TSNE(n_components=2)
-        embeddings_tsne = torch.stack(embeddings_test)
+        embeddings_tsne = tf.convert_to_tensor(embeddings)
         embeddings_tsne = tsne.fit_transform(embeddings_tsne)
 
         # Plot the reduced-dimensional embeddings
-        for i, data_row in enumerate(self.test_data):
+        for i, data_row in enumerate(labeled_data):
             color = 'red' if data_row['label'] else 'blue'
             plt.scatter(embeddings_tsne[i, 0],
                         embeddings_tsne[i, 1], color=color)
+            plt.annotate(text=data_row['text'],
+                         xy=(embeddings_tsne[i, 0], embeddings_tsne[i, 1]))
 
+        # plt.legend()
         plt.title("Sentence Embeddings (TSNE)")
         plt.xlabel("Principal Component 1")
         plt.ylabel("Principal Component 2")
-        plt.savefig('llama_base_tsne.png')
+        plt.savefig('results/test_llama_base_tsne.png')
 
     def evaluate_embeddings(self, embeddings_train, embeddings_test):
         logging.info('classification using SVM')
@@ -171,45 +178,75 @@ class Llama_Embeddings:
         }
 
         # Save the scores to a JSON file
-        with open('results/llama_base_output_embeddings_results.json', 'w') as file:
+        with open('results/test_llama_base_output_embeddings_results.json', 'w') as file:
             json.dump(scores, file)
 
         print(scores)
 
     def test_embeddings(self):
-        prompt = "If we want to compare Coldplay with Arctict Monkeys"
-        inputs = self.tokenizer(prompt, return_tensors="pt")
+        # prompt = "If we want to compare Coldplay with Arctict Monkeys"
+        # inputs = self.tokenizer(prompt, return_tensors="pt")
 
         # simple code to generate code and check the model funtionality
         # sending inputs to gpu to utilize the gpu speed
-        input_ids = inputs.input_ids.to('cuda')
-        generate_ids = self.model.generate(input_ids, max_length=30).to("cuda")
-        decoded_text = self.tokenizer.batch_decode(
-            generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
-        print(decoded_text)
+        # input_ids = inputs.input_ids.to('cuda')
+        # generate_ids = self.model.generate(input_ids, max_length=30).to("cuda")
+        # decoded_text = self.tokenizer.batch_decode(
+        #     generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
+        # print(decoded_text)
 
-        def get_embeddings(model, tokenizer, prompt):
-            input_ids = tokenizer(prompt).input_ids
+        def get_embeddings(prompt):
+            input_ids = self.tokenizer(prompt, max_length=10).input_ids
             # we can use get_output_embeddings as well
-            input_embeddings = model.get_input_embeddings()
+            input_embeddings = self.model.get_input_embeddings()
             embeddings = input_embeddings(torch.LongTensor([input_ids]))
             mean = torch.mean(embeddings[0], 0).cpu().detach()
+            print(mean.shape)
+            # print(embeddings.shape)
             return mean
+        
+        train_data, test_data = get_sample_data()
 
-        prompt1 = "That is a happy dog"
-        prompt2 = "That is a very happy person"
-        prompt3 = "Today is a sunny day"
-
-        emb1 = get_embeddings(self.model, self.tokenizer, prompt1)
-        emb2 = get_embeddings(self.model, self.tokenizer, prompt2)
-        emb3 = get_embeddings(self.model, self.tokenizer, prompt3)
+        embeddings = []
+        sentences = []
+        for data_row in train_data:
+            embedding = get_embeddings(data_row['text'])
+            sentences.append(data_row['text'])
+            embeddings.append(embedding)
 
         def get_cosine_similarity(feature_vec_1, feature_vec_2):
-            return cosine_similarity(feature_vec_1.reshape(1, -1), feature_vec_2.reshape(1, -1))[0][0]
+            output = cosine_similarity(feature_vec_1.reshape(1, -1), feature_vec_2.reshape(1, -1))
+            return output[0]
 
-        print(get_cosine_similarity(emb1, emb2))
-        print(get_cosine_similarity(emb2, emb3))
-        print(get_cosine_similarity(emb1, emb3))
+        cs_values = []
+        for i in embeddings:
+            cosine_similarity_values = []
+            for j in embeddings:
+                cosine_similarity_values.append(get_cosine_similarity(i, j))
+            cs_values.append(cosine_similarity_values)
+
+        cs_values = np.array(cs_values)
+    
+        print('final matrix:', cs_values.shape)
+        print('final matrix:', cs_values)
+
+        sentences = np.array(sentences)
+
+        plt.figure(figsize = (14,14))
+        plt.imshow(cs_values, cmap='Blues_r', interpolation='nearest')
+        # Add color bar to indicate the similarity scale
+        plt.colorbar()
+
+        # Set the tick labels for x and y axes
+        plt.xticks(np.arange(len(sentences)), sentences, rotation=45)
+        plt.yticks(np.arange(len(sentences)), sentences)
+
+        # Set the plot title and labels
+        plt.title('Cosine Similarity Heatmap')
+        plt.xlabel('Sentences')
+        plt.ylabel('Sentences')
+
+        plt.savefig('results/llama_base_cosine_similarity.png')
 
 
 if __name__ == "__main__":
