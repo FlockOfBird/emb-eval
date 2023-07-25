@@ -1,10 +1,10 @@
 import logging
 import json
-import argparse
 from tqdm import tqdm
 
 import torch
 from transformers import LlamaTokenizer, LlamaForCausalLM, LlamaConfig
+from accelerate import infer_auto_device_map
 
 import tensorflow as tf
 import numpy as np
@@ -20,23 +20,26 @@ from sklearn.metrics.pairwise import cosine_similarity
 from data import *
 
 class Llama_Embeddings:
-    def __init__(self):
+    def __init__(self, model, database):
         # logging configuration for better code monitoring
         logging.basicConfig(
             format='%(asctime)s %(message)s', level=logging.INFO)
 
-        # Read arguments from command line
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--Plot", help="Draw plot for embeddings")
-        args = parser.parse_args()
+        models_path = {
+            "llma_7B": "",
+            "llama_13B": "",
+            "llama_30B": "",
+            "llama_65B": "",
+            "llama2_7b": ""
+        }
+
+        PATH_TO_CONVERTED_WEIGHTS = "./llama_converted/7B"
 
         # Set device to auto to utilize GPU
-        device = "auto"
-
-        PATH_TO_CONVERTED_WEIGHTS = "./7B_converted/"
+        device = "auto" # balanced_low_0, auto, balanced, sequential
 
         logging.info('loading dataset')
-        self.train_data, self.test_data = get_sample_data()
+        self.train_data, self.test_data = get_small_imdb(1000)
 
         # Use GPU runtime an High_RAM before run this pieace of code
         # Default CUDA device
@@ -47,6 +50,7 @@ class Llama_Embeddings:
         print('number of cuda devices', torch.cuda.device_count())
 
         logging.info('loading model and tokenizer')
+
         self.model = LlamaForCausalLM.from_pretrained(
             PATH_TO_CONVERTED_WEIGHTS,
             device_map=device
@@ -55,12 +59,12 @@ class Llama_Embeddings:
             PATH_TO_CONVERTED_WEIGHTS
         )
 
-        # self.test_embeddings()
+        embeddings_train, embeddings_test = self.get_embeddings(save_embeddings=True)
 
-        embeddings_train, embeddings_test = self.get_embeddings(save_embeddings=False)
-
+        if args.TestEmbeddings:
+            self.test_embeddings()
         if args.Plot:
-            # self.plot_embeddings(embeddings_test, self.test_data)
+            self.plot_embeddings(embeddings_test, self.test_data)
             self.plot_embeddings(embeddings_train, self.train_data)
 
     def get_embeddings(self, save_embeddings):
@@ -68,42 +72,56 @@ class Llama_Embeddings:
         '''
             save_embeddings: T/F value to save the model in results directory
         '''
-        embeddings_train = []
-        for data_row in tqdm(self.train_data):
-            # print(data_row)
-            tokens = self.tokenizer(data_row['text'])
-            input_ids = tokens['input_ids']
+        embed_train_data = True
+        embed_test_data = True
 
-            # Obtain sentence embedding
-            with torch.no_grad():
-                input_embeddings = self.model.get_input_embeddings()
-                embedding = input_embeddings(
-                    torch.LongTensor([input_ids]))
-                embedding = torch.mean(
-                    embedding[0], 0).cpu().detach()
+        if(embed_train_data):
+            embeddings_train = []
+            for data_row in tqdm(self.train_data):
+                # print(data_row)
+                tokens = self.tokenizer(data_row['text'])
+                input_ids = tokens['input_ids']
 
-                embeddings_train.append(embedding)
+                # Obtain sentence embedding
+                with torch.no_grad():
+                    input_embeddings = self.model.get_input_embeddings()
+                    embedding = input_embeddings(
+                        torch.LongTensor([input_ids]))
+                    embedding = torch.mean(
+                        embedding[0], 0).cpu().detach()
 
-        embeddings_test = []
-        for data_row in tqdm(self.test_data):
-            tokens = self.tokenizer(data_row['text'])
-            input_ids = tokens['input_ids']
+                    embeddings_train.append(embedding)
 
-            # Obtain sentence embedding
-            with torch.no_grad():
-                input_embeddings = self.model.get_input_embeddings()
-                embedding = input_embeddings(
-                    torch.LongTensor([input_ids]))
-                embedding = torch.mean(
-                    embedding[0], 0).cpu().detach()
-                embeddings_test.append(embedding)
+
+        if(embed_test_data):
+            embeddings_test = []
+            for data_row in tqdm(self.test_data):
+                tokens = self.tokenizer(data_row['text'])
+                input_ids = tokens['input_ids']
+
+                # Obtain sentence embedding
+                with torch.no_grad():
+                    input_embeddings = self.model.get_input_embeddings()
+                    embedding = input_embeddings(
+                        torch.LongTensor([input_ids]))
+                    embedding = torch.mean(
+                        embedding[0], 0).cpu().detach()
+                    embeddings_test.append(embedding)
 
         if save_embeddings:
+            logging.info('saving train data embeddings')
             embeddings_train = np.array(embeddings_train)
             train_data = pd.concat([pd.DataFrame(self.train_data), pd.DataFrame(embeddings_train)], axis=1)
             # Save the scores to a CSV file
             print(train_data.head())
-            train_data.to_csv('results/embeddings/llama_base_Discription_embeddings.csv', sep='\t')
+            train_data.to_csv('results/test.csv', sep='\t')
+
+            logging.info('saving test data embeddings')
+            embeddings_test = np.array(embeddings_test)
+            test_data = pd.concat([pd.DataFrame(self.test_data), pd.DataFrame(embeddings_test)], axis=1)
+            # Save the scores to a CSV file
+            print(test_data.head())
+            test_data.to_csv('results/embeddings/imdb/llamaII7b_base_IMDBtest_embeddings.csv', sep='\t')
 
         return embeddings_train, embeddings_test
 
@@ -178,7 +196,7 @@ class Llama_Embeddings:
         }
 
         # Save the scores to a JSON file
-        with open('results/test_llama_base_output_embeddings_results.json', 'w') as file:
+        with open('results/llama65b/llama_base_output_embeddings_results.json', 'w') as file:
             json.dump(scores, file)
 
         print(scores)
@@ -200,9 +218,15 @@ class Llama_Embeddings:
             # we can use get_output_embeddings as well
             input_embeddings = self.model.get_input_embeddings()
             embeddings = input_embeddings(torch.LongTensor([input_ids]))
-            mean = torch.mean(embeddings[0], 0).cpu().detach()
-            print(mean.shape)
-            # print(embeddings.shape)
+            print(prompt)
+
+            print('embs shape:', embeddings.shape)
+            print('embs:',embeddings)
+            # we use embeddings[0] since the input_embeddings could return multiple word embeddings at the same time, but since we are passing one input_ids at a time it returns only one sequence embedding in its zero index. 
+            # second 0 in (embedding[0], 0) indicates the output dimension of mean calculation
+            mean = torch.mean(embeddings[0], 0).cpu().detach() 
+            print('mean shape',mean.shape)
+            print('mean ',mean)
             return mean
         
         train_data, test_data = get_sample_data()
@@ -226,10 +250,6 @@ class Llama_Embeddings:
             cs_values.append(cosine_similarity_values)
 
         cs_values = np.array(cs_values)
-    
-        print('final matrix:', cs_values.shape)
-        print('final matrix:', cs_values)
-
         sentences = np.array(sentences)
 
         plt.figure(figsize = (14,14))
@@ -250,4 +270,4 @@ class Llama_Embeddings:
 
 
 if __name__ == "__main__":
-    llama_embeddings = Llama_Embeddings()
+    llama_embeddings = Llama_Embeddings("7B","imdb")
