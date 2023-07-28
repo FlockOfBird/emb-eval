@@ -10,67 +10,57 @@ import tensorflow as tf
 import numpy as np
 import pandas as pd
 
-import matplotlib.pyplot as plt
-from sklearn.manifold import TSNE
-from sklearn.decomposition import PCA
-from sklearn.metrics import f1_score, accuracy_score
-from sklearn.svm import SVC
-from sklearn.metrics.pairwise import cosine_similarity
-
-from data import *
+# from data import *
 
 class Llama_Embeddings:
-    def __init__(self, model, database):
-        # logging configuration for better code monitoring
-        logging.basicConfig(
-            format='%(asctime)s %(message)s', level=logging.INFO)
+    def __init__(self, model_name, dataset_getter, dataset_name):
 
+        logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
+
+        logging.info(f'loading dataset')
+        self.dataset_name = dataset_name
+        self.train_data, self.test_data = dataset_getter
+
+        logging.info('loading model and tokenizer')
+        self.model_name = model_name
+        ##! generate an error if the model name is not a valid key
         models_path = {
-            "llma_7B": "",
-            "llama_13B": "",
-            "llama_30B": "",
-            "llama_65B": "",
-            "llama2_7b": ""
+            "llama_7B": "./llama_converted/7B",
+            "llama_13B": "./llama_converted/13B",
+            "llama_30B": "./llama_converted/30B",
+            "llama_65B": "./llama_converted/65B",
+            "llama2_7B": "./llama2_converted/7B"
         }
-
-        PATH_TO_CONVERTED_WEIGHTS = "./llama_converted/7B"
+        PATH_TO_CONVERTED_WEIGHTS = models_path[model_name]
 
         # Set device to auto to utilize GPU
         device = "auto" # balanced_low_0, auto, balanced, sequential
 
-        logging.info('loading dataset')
-        self.train_data, self.test_data = get_small_imdb(1000)
-
-        # Use GPU runtime an High_RAM before run this pieace of code
-        # Default CUDA device
-        print('if cuda is available:', torch.cuda.is_available())
-        # returns 0 in my case
-        print('current cuda device:', torch.cuda.current_device())
-        # returns 1 in my case
-        print('number of cuda devices', torch.cuda.device_count())
-
-        logging.info('loading model and tokenizer')
-
-        self.model = LlamaForCausalLM.from_pretrained(
-            PATH_TO_CONVERTED_WEIGHTS,
-            device_map=device
-        )
+        if model_name == "llama_30B":
+            print("loading llama 30B takes much longer time due to GPU management issues.")
+            self.model = LlamaForCausalLM.from_pretrained(
+                PATH_TO_CONVERTED_WEIGHTS,
+                device_map=device,
+                max_memory={0: "12GiB", 1: "12GiB", 2:"12GiB", 3:"12GiB"},
+                offload_folder="offload"
+            )
+        else:
+            self.model = LlamaForCausalLM.from_pretrained(
+                PATH_TO_CONVERTED_WEIGHTS,
+                device_map=device
+            )
         self.tokenizer = LlamaTokenizer.from_pretrained(
             PATH_TO_CONVERTED_WEIGHTS
         )
 
         embeddings_train, embeddings_test = self.get_embeddings(save_embeddings=True)
 
-        if args.TestEmbeddings:
-            self.test_embeddings()
-        if args.Plot:
-            self.plot_embeddings(embeddings_test, self.test_data)
-            self.plot_embeddings(embeddings_train, self.train_data)
 
     def get_embeddings(self, save_embeddings):
         logging.info('encoding data and generating embeddings for test/train')
         '''
-            save_embeddings: T/F value to save the model in results directory
+            arguments:
+                save_embeddings: T/F value to save the model in results directory
         '''
         embed_train_data = True
         embed_test_data = True
@@ -78,7 +68,6 @@ class Llama_Embeddings:
         if(embed_train_data):
             embeddings_train = []
             for data_row in tqdm(self.train_data):
-                # print(data_row)
                 tokens = self.tokenizer(data_row['text'])
                 input_ids = tokens['input_ids']
 
@@ -112,162 +101,14 @@ class Llama_Embeddings:
             logging.info('saving train data embeddings')
             embeddings_train = np.array(embeddings_train)
             train_data = pd.concat([pd.DataFrame(self.train_data), pd.DataFrame(embeddings_train)], axis=1)
-            # Save the scores to a CSV file
-            print(train_data.head())
-            train_data.to_csv('results/test.csv', sep='\t')
+            train_data.to_csv(f'results/embeddings/{self.model_name}_base_{self.dataset_name}_embeddings_train.csv', sep='\t')
 
             logging.info('saving test data embeddings')
             embeddings_test = np.array(embeddings_test)
             test_data = pd.concat([pd.DataFrame(self.test_data), pd.DataFrame(embeddings_test)], axis=1)
-            # Save the scores to a CSV file
-            print(test_data.head())
-            test_data.to_csv('results/embeddings/imdb/llamaII7b_base_IMDBtest_embeddings.csv', sep='\t')
+            test_data.to_csv(f'results/embeddings/{self.model_name}_base_{self.dataset_name}_embeddings_test.csv', sep='\t')
 
         return embeddings_train, embeddings_test
 
-    def plot_embeddings(self, embeddings, labeled_data):
-        logging.info('creating plot')
-        # Perform dimensionality reduction using PCA
-        pca = PCA(n_components=2)
-
-        embeddings_pca = pca.fit_transform(embeddings)
-
-        # Plot the reduced-dimensional embeddings
-        for i, data_row in enumerate(labeled_data):
-            color = 'red' if data_row['label'] else 'blue'
-            plt.scatter(embeddings_pca[i, 0],
-                        embeddings_pca[i, 1], color=color, label=data_row['text'])
-            plt.annotate(text=data_row['text'],
-                         xy=(embeddings_pca[i, 0], embeddings_pca[i, 1]))
-
-        # plt.legend()
-        plt.title("Sentence Embeddings (PCA)")
-        plt.xlabel("Principal Component 1")
-        plt.ylabel("Principal Component 2")
-        plt.savefig('results/test_llama_base_pca.png')
-
-        # Perform dimensionality reduction using TSNE
-        tsne = TSNE(n_components=2)
-        embeddings_tsne = tf.convert_to_tensor(embeddings)
-        embeddings_tsne = tsne.fit_transform(embeddings_tsne)
-
-        # Plot the reduced-dimensional embeddings
-        for i, data_row in enumerate(labeled_data):
-            color = 'red' if data_row['label'] else 'blue'
-            plt.scatter(embeddings_tsne[i, 0],
-                        embeddings_tsne[i, 1], color=color)
-            plt.annotate(text=data_row['text'],
-                         xy=(embeddings_tsne[i, 0], embeddings_tsne[i, 1]))
-
-        # plt.legend()
-        plt.title("Sentence Embeddings (TSNE)")
-        plt.xlabel("Principal Component 1")
-        plt.ylabel("Principal Component 2")
-        plt.savefig('results/test_llama_base_tsne.png')
-
-    def evaluate_embeddings(self, embeddings_train, embeddings_test):
-        logging.info('classification using SVM')
-        svm = SVC()
-
-        train_labels = []
-        for data_row in self.train_data:
-            train_labels.append(data_row['label'])
-
-        test_labels = []
-        for data_row in self.test_data:
-            test_labels.append(data_row['label'])
-
-        svm.fit(embeddings_train, train_labels)
-
-        # Make predictions on the test data
-        y_pred = svm.predict(embeddings_test)
-
-        # Calculate F1 and accuracy score
-        f1 = f1_score(test_labels, y_pred)
-        accuracy = accuracy_score(test_labels, y_pred)
-
-        # experiment descriptions
-        scores = {
-            'Data': 'IMDB',
-            'Data Size Test': len(embeddings_test),
-            'Data Size Train': len(embeddings_train),
-            'F1 score': f1,
-            'Accuracy': accuracy
-        }
-
-        # Save the scores to a JSON file
-        with open('results/llama65b/llama_base_output_embeddings_results.json', 'w') as file:
-            json.dump(scores, file)
-
-        print(scores)
-
-    def test_embeddings(self):
-        # prompt = "If we want to compare Coldplay with Arctict Monkeys"
-        # inputs = self.tokenizer(prompt, return_tensors="pt")
-
-        # simple code to generate code and check the model funtionality
-        # sending inputs to gpu to utilize the gpu speed
-        # input_ids = inputs.input_ids.to('cuda')
-        # generate_ids = self.model.generate(input_ids, max_length=30).to("cuda")
-        # decoded_text = self.tokenizer.batch_decode(
-        #     generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
-        # print(decoded_text)
-
-        def get_embeddings(prompt):
-            input_ids = self.tokenizer(prompt, max_length=10).input_ids
-            # we can use get_output_embeddings as well
-            input_embeddings = self.model.get_input_embeddings()
-            embeddings = input_embeddings(torch.LongTensor([input_ids]))
-            print(prompt)
-
-            print('embs shape:', embeddings.shape)
-            print('embs:',embeddings)
-            # we use embeddings[0] since the input_embeddings could return multiple word embeddings at the same time, but since we are passing one input_ids at a time it returns only one sequence embedding in its zero index. 
-            # second 0 in (embedding[0], 0) indicates the output dimension of mean calculation
-            mean = torch.mean(embeddings[0], 0).cpu().detach() 
-            print('mean shape',mean.shape)
-            print('mean ',mean)
-            return mean
-        
-        train_data, test_data = get_sample_data()
-
-        embeddings = []
-        sentences = []
-        for data_row in train_data:
-            embedding = get_embeddings(data_row['text'])
-            sentences.append(data_row['text'])
-            embeddings.append(embedding)
-
-        def get_cosine_similarity(feature_vec_1, feature_vec_2):
-            output = cosine_similarity(feature_vec_1.reshape(1, -1), feature_vec_2.reshape(1, -1))
-            return output[0]
-
-        cs_values = []
-        for i in embeddings:
-            cosine_similarity_values = []
-            for j in embeddings:
-                cosine_similarity_values.append(get_cosine_similarity(i, j))
-            cs_values.append(cosine_similarity_values)
-
-        cs_values = np.array(cs_values)
-        sentences = np.array(sentences)
-
-        plt.figure(figsize = (14,14))
-        plt.imshow(cs_values, cmap='Blues_r', interpolation='nearest')
-        # Add color bar to indicate the similarity scale
-        plt.colorbar()
-
-        # Set the tick labels for x and y axes
-        plt.xticks(np.arange(len(sentences)), sentences, rotation=45)
-        plt.yticks(np.arange(len(sentences)), sentences)
-
-        # Set the plot title and labels
-        plt.title('Cosine Similarity Heatmap')
-        plt.xlabel('Sentences')
-        plt.ylabel('Sentences')
-
-        plt.savefig('results/llama_base_cosine_similarity.png')
-
-
-if __name__ == "__main__":
-    llama_embeddings = Llama_Embeddings("7B","imdb")
+# if __name__ == "__main__":
+#     llama_embeddings = Llama_Embeddings("llama_7B","imdb")

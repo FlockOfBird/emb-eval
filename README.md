@@ -6,7 +6,14 @@ $ nvidia-smi
 $ glances
 $ htop
 ```
+check GPU status
+```python
+import torch
 
+print('if cuda is available:', torch.cuda.is_available())
+print('current cuda device:', torch.cuda.current_device())
+print('number of cuda devices', torch.cuda.device_count())
+```
 ## Prepare enviornment
 Before running any python file, first active virtual environment with 
 ```bash
