@@ -13,13 +13,13 @@ import pandas as pd
 # from data import *
 
 class Llama_Embeddings:
-    def __init__(self, model_name, dataset_getter, dataset_name):
+    def __init__(self, model_name, dataset, dataset_name):
 
         logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
         logging.info(f'loading dataset')
         self.dataset_name = dataset_name
-        self.train_data, self.test_data = dataset_getter
+        self.train_data, self.test_data = dataset["train"], dataset["test"]
 
         logging.info('loading model and tokenizer')
         self.model_name = model_name

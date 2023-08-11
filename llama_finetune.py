@@ -1,6 +1,5 @@
 import logging
 import json
-import argparse
 
 import torch
 from transformers import LlamaTokenizer, LlamaForSequenceClassification, TrainingArguments, Trainer,TFTrainer, DataCollatorWithPadding
@@ -14,18 +13,14 @@ from datasets import load_metric
 
 from accelerate import infer_auto_device_map
 
-from imdb_data import get_imdb, get_small_imdb
+from data import get_imdb, get_small_imdb
 
 # logging configuration for better code monitoring
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
-# Read arguments from command line
-parser = argparse.ArgumentParser()
-parser.add_argument("--Plot", help="Draw plot for embeddings")
-args = parser.parse_args()
 
 
-PATH_TO_CONVERTED_WEIGHTS = "./7B_converted/"
+PATH_TO_CONVERTED_WEIGHTS = "./llama_converted/7B/"
 
 logging.info('loading dataset')
 train_data, test_data = get_small_imdb(500)
@@ -36,12 +31,20 @@ print('current cuda device:', torch.cuda.current_device())  # returns 0 in my ca
 print('number of cuda devices', torch.cuda.device_count()) 
 
 logging.info('loading model and tokenizer')
-
+device = "balanced" # balanced_low_0, auto, balanced, sequential
+print("loading llama 30B takes much longer time due to GPU management issues.")
 llama_model = LlamaForSequenceClassification.from_pretrained(
     PATH_TO_CONVERTED_WEIGHTS,
-    device_map="auto",
+    device_map=device,
+    max_memory={0: "12GiB", 1: "12GiB", 2:"12GiB", 3:"12GiB"},
+    offload_folder="offload",
     num_labels=2
 )
+# llama_model = LlamaForSequenceClassification.from_pretrained(
+#     PATH_TO_CONVERTED_WEIGHTS,
+#     device_map="auto",
+#     num_labels=2
+# )
 
 llama_tokenizer = LlamaTokenizer.from_pretrained(PATH_TO_CONVERTED_WEIGHTS)
 
@@ -74,12 +77,12 @@ tokenized_test = DataLoader(
 )
 
 optimizer = AdamW(llama_model.parameters(), lr=3e-4)
-llama_model = nn.DataParallel(llama_model, device_ids=[0, 1, 2, 3])
+# llama_model = nn.DataParallel(llama_model, device_ids=[0, 1, 2, 3])
 
-device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-
+# device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+device = "auto"
 print(device)
-llama_model.to(device)
+# llama_model.to(device)
 
 
 
@@ -105,7 +108,7 @@ def finetune_huggingface():
         return {"accuracy": accuracy, "f1": f1}
 
     # Define a new Trainer with all the objects we constructed so far
-    OUTPUT_PATH = './finetuned_bert'
+    OUTPUT_PATH = './finetuned_llama'
     training_args = TrainingArguments(
         output_dir=OUTPUT_PATH,
         learning_rate=3e-4,
@@ -131,7 +134,7 @@ def finetune_huggingface():
 
     # trainer.args._n_gpu = 4
     # print(trainer)
-    print(trainer.args)
+    # print(trainer.args)
     # print(dir(trainer))
 
     # Train the model
@@ -152,43 +155,8 @@ def finetune_huggingface():
 
 
 logging.info('finetuning model')
-# scores = finetune_huggingface()
+scores = finetune_huggingface()
 
 # Save the scores to a JSON file
 with open('results/llama_finetune_results.json', 'w') as file:
     json.dump(scores, file)
-
-# prompt = "Hey, are you conscious? Can you talk to me?"
-# inputs = tokenizer(prompt, return_tensors="pt")
-
-# # simple code to generate code and check the model funtionality
-# generate_ids = model.generate(inputs.input_ids, max_length=30)
-# tokenizer.batch_decode(generate_ids, skip_special_tokens=True,
-#                        clean_up_tokenization_spaces=False)[0]
-
-
-# def get_embeddings(model, tokenizer, prompt):
-#     input_ids = tokenizer(prompt).input_ids
-#     # we can use get_output_embeddings as well
-#     input_embeddings = model.get_input_embeddings()
-#     embeddings = input_embeddings(torch.LongTensor([input_ids]))
-#     mean = torch.mean(embeddings[0], 0).cpu().detach()
-#     return mean
-
-
-# prompt1 = "That is a happy dog"
-# prompt2 = "That is a very happy person"
-# prompt3 = "Today is a sunny day"
-
-# emb1 = get_embeddings(model, tokenizer, prompt1)
-# emb2 = get_embeddings(model, tokenizer, prompt2)
-# emb3 = get_embeddings(model, tokenizer, prompt3)
-
-
-# def get_cosine_similarity(feature_vec_1, feature_vec_2):
-#     return cosine_similarity(feature_vec_1.reshape(1, -1), feature_vec_2.reshape(1, -1))[0][0]
-
-
-# print(get_cosine_similarity(emb1, emb2))
-# print(get_cosine_similarity(emb2, emb3))
-# print(get_cosine_similarity(emb1, emb3))
