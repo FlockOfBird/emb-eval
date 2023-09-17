@@ -1,24 +1,37 @@
 import llama_base
 import bert_base
 from data import *
-
+from data_bio import get_bio_dataset
 '''
 By running this file, a loop starts to generate embeddings based on all of the available models and datasets.
 '''
-
-# "llama_7B", "llama_13B", "llama_30B", "llama_65B", "llama2_7B", "llama2_13B", "llama2_70B"
-models_llama = ["llama_7B", "llama2_7B"]
+'''
+options for models_llama:
+    "llama-7B", "llama-13B", "llama-30B", "llama-65B", "llama2-7B", "llama2-13B", "llama2-70B"
+'''
+models_llama = ["llama2-7B"]
+'''
+options for models_bert:
+    "bert"
+'''
 models_bert = ["bert"]
 
-datasets = ["yelpp", "imdb", "agnews", "yelpf"]
+'''
+options for datasets:
+    "yelpp", "imdb", "agnews", "yelpf"
+'''
+datasets = ["sample"]
 
 for model in models_llama:
-    for dataset_name in datasets:
-        print('>>>>>>>>',model, dataset_name,'<<<<<<<<')
-        llama_base.Llama_Embeddings(model, get_dataset(dataset_name), dataset_name)
+    llama_base.Llama_Embeddings(model, datasets)
 
-for model in models_bert:
-    for dataset_name in datasets:
-        print('>>>>>>>>',model, dataset_name,'<<<<<<<<')
-        dataset = get_dataset(dataset_name)
-        bert_base.Bert_Embeddings(model, dataset, dataset_name)
+# for model in models_bert:
+#     bert_base.Bert_Embeddings(model, datasets)
+
+'''
+options for bio datasets:
+    "hiv", "bace", "clintox"
+'''
+# bio_datasets = ["hiv"]
+# for model in models_llama:
+#     llama_base.Llama_Embeddings(model, bio_datasets)

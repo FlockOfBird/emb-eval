@@ -10,8 +10,7 @@ import tensorflow as tf
 import numpy as np
 import pandas as pd
 
-from data import *
-# from data_bio import get_bio_dataset
+from data_bio import get_bio_dataset
 
 
 class Llama_Embeddings:
@@ -22,7 +21,7 @@ class Llama_Embeddings:
 
         logging.info('loading model and tokenizer')
         self.model_name = model_name
-        ##! generate an error if the model name is not a valid key
+
         models_path = {
             "llama-7B": "./llama_converted/7B",
             "llama-13B": "./llama_converted/13B",
@@ -37,21 +36,11 @@ class Llama_Embeddings:
         # Set device to auto to utilize GPU
         device = "auto"  # balanced_low_0, auto, balanced, sequential
 
-        if model_name == "llama-310B":
-            print(
-                "loading llama 30B takes much longer time due to GPU management issues.")
-            self.model = LlamaForCausalLM.from_pretrained(
-                PATH_TO_CONVERTED_WEIGHTS,
-                device_map=device,
-                max_memory={0: "12GiB", 1: "12GiB", 2: "12GiB", 3: "12GiB"},
-                offload_folder="offload"
-            )
-        else:
-            self.model = LlamaForCausalLM.from_pretrained(
-                PATH_TO_CONVERTED_WEIGHTS,
-                device_map=device,
-                output_hidden_states=True
-            )
+        self.model = LlamaForCausalLM.from_pretrained(
+            PATH_TO_CONVERTED_WEIGHTS,
+            device_map=device,
+            output_hidden_states=True
+        )
         self.tokenizer = LlamaTokenizer.from_pretrained(
             PATH_TO_CONVERTED_WEIGHTS
         )
@@ -64,7 +53,6 @@ class Llama_Embeddings:
         for dataset in self.datasets:
             print('>>>>>>>>', self.model_name, dataset, '<<<<<<<<')
             self.dataset_name = dataset
-            print('dataset_name',self.dataset_name)
             dataset = get_small_dataset(dataset)
             self.train_data, self.test_data = dataset["train"], dataset["test"]
             train_embeddings = self.get_embeddings(
@@ -81,36 +69,24 @@ class Llama_Embeddings:
 
         embeddings = []
         for data_row in tqdm(self.train_data):
-            # tokens = self.tokenizer(data_row['text'])
-            # input_ids = tokens['input_ids']
-            # using get_input_embedding method
-            # with torch.no_grad():
-            #     input_embeddings = self.model.get_input_embeddings()
-            #     embedding = input_embeddings(
-            #         torch.LongTensor([input_ids]))
-            #     embedding = torch.mean(
-            #         embedding[0], 0).cpu().detach()
-
-            #     embeddings.append(embedding)
-
-            tokens = self.tokenizer(
-                data_row['text'], padding=True, truncation=True, return_tensors='pt')
+            tokens = self.tokenizer(data_row['text'])
+            input_ids = tokens['input_ids']
+            using get_input_embedding method
             with torch.no_grad():
-                output = self.model(**tokens, return_dict=True)
-                embedding = torch.mean(output.hidden_states[-1], 1)
-                embeddings.append(embedding[0])
+                input_embeddings = self.model.get_input_embeddings()
+                embedding = input_embeddings(
+                    torch.LongTensor([input_ids]))
+                embedding = torch.mean(
+                    embedding[0], 0).cpu().detach()
+
+                embeddings.append(embedding)
 
         if (save_embeddings):
             logging.info('saving train data embeddings')
             embeddings = np.array(embeddings)
             embeddings = pd.concat(
                 [pd.DataFrame(self.train_data), pd.DataFrame(embeddings)], axis=1)
-            path = f'results/embeddings/{self.model_name}_{dataset_name}_embeddings.csv'
-            print('saving embeddings to', path)
-            print(embeddings.head)
-            embeddings.to_csv(path, sep='\t')
+            embeddings.to_csv(
+                f'results/embeddings/{self.model_name}_{dataset_name}_embeddings.csv', sep='\t')
 
         return embeddings
-
-# if __name__ == "__main__":
-#     llama_embeddings = Llama_Embeddings("llama_7B","imdb")

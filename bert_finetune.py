@@ -1,52 +1,107 @@
 import json
 import logging
-import argparse
 
-from transformers import AutoTokenizer, BertModel, BertForSequenceClassification, TrainingArguments, Trainer, DataCollatorWithPadding
+import evaluate
+
+from transformers import AutoTokenizer, BertModel, BertForSequenceClassification, TrainingArguments, Trainer, DataCollatorWithPadding, get_scheduler
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from torch.optim import AdamW
 from datasets import load_metric
-import tqdm
+from tqdm.auto import tqdm
 
 import numpy as np
-
-from imdb_data import get_imdb, get_small_imdb
+from data import *
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
-# Read arguments from command line
-parser = argparse.ArgumentParser()
-parser.add_argument("--Plot",
-                    help="Draw plot for embeddings")
-parser.add_argument("--Finetune_Pytorch",
-                    help="Finetuning with full modification")
-parser.add_argument("--Finetune_transformers",
-                    help="Finetuning with Trainer")
-
-args = parser.parse_args()
-
 logging.info('loading dataset')
-train_data, test_data = get_small_imdb(1000)
+db = get_small_dataset("imdb")
+train_data, test_data = db["train"], db["train"]
+
+logging.info('loading model')
+model = BertForSequenceClassification.from_pretrained(
+    "bert-base-cased", num_labels=2)
+# model = torch.nn.DataParallel(model, device_ids=[0])
 
 logging.info('loading tokenizer')
 bert_tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
 
+logging.info('tokenizing and loading data into gpus')
 
-def finetune_huggingface():
-    model = BertForSequenceClassification.from_pretrained(
-        "bert-base-uncased", num_labels=2)
 
-    def preprocess_function(examples):
-        return bert_tokenizer(examples["text"], truncation=True)
+def preprocess_function(examples):
+    return bert_tokenizer(examples["text"], padding="max_length", truncation=True)
 
-    tokenized_train = train_data.map(preprocess_function, batched=True)
-    tokenized_test = test_data.map(preprocess_function, batched=True)
+
+tokenized_train = train_data.map(preprocess_function, batched=True)
+tokenized_test = test_data.map(preprocess_function, batched=True)
+
+optimizer = AdamW(model.parameters(), lr=3e-4)
+
+
+def finetune_pytorch(tokenized_train, tokenized_test, optimizer):
+    # remove unrelated columns
+    tokenized_train = tokenized_train.remove_columns(["text", "Unnamed: 0"])
+    tokenized_test = tokenized_test.remove_columns(["text",  "Unnamed: 0"])
+    # rename label
+    tokenized_train = tokenized_train.rename_column("label", "labels")
+    tokenized_test = tokenized_test.rename_column("label", "labels")
+
+    tokenized_train.set_format("torch")
+    tokenized_test.set_format("torch")
+
+    train_dataloader = DataLoader(tokenized_train, shuffle=True, batch_size=8)
+    test_dataloader = DataLoader(tokenized_test, batch_size=8)
+
+    num_epochs = 3
+    num_training_steps = num_epochs * len(train_dataloader)
+
+    lr_scheduler = get_scheduler(
+        name="linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
+    )
+    progress_bar = tqdm(range(num_training_steps))
+
+    print('change the model mode to train')
+    model.train()
+
+    for epoch in range(num_epochs):
+        for batch in train_dataloader:
+            # batch = {k: v.to('cuda:0') for k, v in batch.items()}
+            # input = {
+            #     'labels': batch['labels'].to('cuda:0'),
+            #     'input_ids': batch['input_ids'].to('cuda:0'),
+            #     'attention_mask': batch['attention_mask'].to('cuda:0')
+            # }
+            outputs = model(**batch)
+            loss = outputs.loss
+            loss.backward()
+            optimizer.step()
+            lr_scheduler.step()
+            optimizer.zero_grad()
+            progress_bar.update(1)
+
+    metric = evaluate.load("accuracy")
+
+    model.eval()
+    for batch in test_dataloader:
+        batch = {k: v.to('cuda:0') for k, v in batch.items()}
+        with torch.no_grad():
+            outputs = model(**batch)
+        logits = outputs.logits
+        predictions = torch.argmax(logits, dim=-1)
+        metric.add_batch(predictions=predictions, references=batch["labels"])
+
+    metric.compute()
+
+
+def finetune_huggingface(tokenized_train, tokenized_test, optimizer):
 
     data_collator = DataCollatorWithPadding(tokenizer=bert_tokenizer)
-
     # Define the evaluation metrics
+
     def compute_metrics(eval_pred):
         load_accuracy = load_metric("accuracy")
         load_f1 = load_metric("f1")
@@ -59,11 +114,13 @@ def finetune_huggingface():
         return {"accuracy": accuracy, "f1": f1}
 
     # Define a new Trainer with all the objects we constructed so far
-    OUTPUT_PATH = './finetuned_bert'
+    OUTPUT_PATH = './finetuned_llama'
 
     training_args = TrainingArguments(
         output_dir=OUTPUT_PATH,
-        learning_rate=2e-5,
+        learning_rate=3e-4,
+        # per_gpu_train_batch_size=16,
+        # per_gpu_eval_batch_size=16,
         per_device_train_batch_size=16,
         per_device_eval_batch_size=16,
         num_train_epochs=4,
@@ -73,12 +130,13 @@ def finetune_huggingface():
 
     trainer = Trainer(
         model=model,
+        strategy='ddp_sharded',
         args=training_args,
         train_dataset=tokenized_train,
         eval_dataset=tokenized_test,
         tokenizer=bert_tokenizer,
         data_collator=data_collator,
-        compute_metrics=compute_metrics,
+        compute_metrics=compute_metrics
     )
 
     # Train the model
@@ -99,108 +157,9 @@ def finetune_huggingface():
 
 
 logging.info('finetuning model')
-scores = finetune_huggingface()
+# scores = finetune_huggingface(tokenized_train, tokenized_test, optimizer)
+scores = finetune_pytorch(tokenized_train, tokenized_test, optimizer)
 
 # Save the scores to a JSON file
 with open('results/bert_finetune_results.json', 'w') as file:
     json.dump(scores, file)
-
-
-def finetune_pytorch(epochs, dataloader, model, loss_fn, optimizer):
-    logging.info('loading bert and tokenizer')
-
-    bert_tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
-
-    logging.info('encoding data')
-    # Prepare the text inputs for the model
-    review_train = []
-    for i, review in enumerate(train_data):
-        tokens = bert_tokenizer.encode_plus(
-            review['text'],
-            add_special_tokens=True,
-            max_length=512,
-            padding='max_length',
-            truncation=True,
-            return_attention_mask=True,
-            return_tensors='pt'
-        )
-        input_ids = tokens['input_ids'].squeeze()
-        token_type_ids = tokens['token_type_ids'].squeeze()
-        mask = tokens["attention_mask"].squeeze()
-
-        review_train.append({
-            'input_ids': input_ids.clone().detach(),
-            'token_type_ids': token_type_ids.clone().detach(),
-            'mask': mask.clone().detach(),
-            'target': torch.tensor(review['label'], dtype=torch.long)
-        })
-
-    dataloader = DataLoader(dataset=review_train, batch_size=32)
-
-    logging.info('create model')
-
-    class BERT(nn.Module):
-        def __init__(self):
-            super(BERT, self).__init__()
-            self.bert_model = BertModel.from_pretrained("bert-base-uncased")
-            self.out = nn.Linear(768, 1)
-
-        def forward(self, ids, mask, token_type_ids):
-            _, o2 = self.bert_model(ids,
-                                    attention_mask=mask,
-                                    token_type_ids=token_type_ids,
-                                    return_dict=False
-                                    )
-            out = self.out(o2)
-            return out
-
-    model = BERT()
-
-    loss_fn = nn.BCEWithLogitsLoss()
-
-    # logging.info('freeze only last linear dense layer')
-    # for param in model.bert_model.parameters():
-    #     param.requires_grad = False
-
-    # Initialize Optimizer
-    optimizer = optim.Adam(model.parameters(), lr=0.0001)
-    model.train()
-    for epoch in range(epochs):
-        print(epoch)
-
-        # loop =
-        for dl in dataloader:
-            ids = dl['input_ids']
-            token_type_ids = dl['token_type_ids']
-            mask = dl['mask']
-            label = dl['target']
-            label = label.unsqueeze(1)
-
-            optimizer.zero_grad()
-
-            output = model(
-                ids=ids,
-                mask=mask,
-                token_type_ids=token_type_ids)
-            label = label.type_as(output)
-
-            loss = loss_fn(output, label)
-            loss.backward()
-
-            optimizer.step()
-
-            pred = np.where(output >= 0, 1, 0)
-
-            num_correct = sum(1 for a, b in zip(pred, label) if a[0] == b[0])
-            num_samples = pred.shape[0]
-            accuracy = num_correct/num_samples
-
-            print(
-                f'Got {num_correct} / {num_samples} with accuracy {float(num_correct)/float(num_samples)*100:.2f}')
-
-            # Show progress while training
-            print(f'Epoch={epoch}/{epochs}')
-            loss_val = loss.item()
-            print(loss_val, accuracy)
-
-    return model

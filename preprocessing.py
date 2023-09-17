@@ -2,7 +2,7 @@ from datasets import load_dataset, DatasetDict, Dataset
 import pandas as pd
 
 
-def get_sample_data():
+def create_sample_data():
     '''
         returns:
             a hugging face dataset containing test and train dataset
@@ -32,13 +32,10 @@ def get_sample_data():
     df_train = pd.DataFrame(dataset_train)
     df_test = pd.DataFrame(dataset_test)
 
-    dataset = DatasetDict({
-        "train": Dataset.from_pandas(df_train),
-        "test": Dataset.from_pandas(df_test)
-    })
+    df_train.to_csv('data/tcls_datasets/sample_train.csv')
+    df_test.to_csv('data/tcls_datasets/sample_test.csv')
 
-    return dataset["train"], dataset["test"]
-
+    return df_train, df_test
 
 def clean_imdb():
     '''
@@ -130,7 +127,37 @@ def clean_yelpf():
     df_train.to_csv('data/tcls_datasets/yelpf_train.csv')
     df_test.to_csv('data/tcls_datasets/yelpf_test.csv')
 
+def clean_sst():
+    dataset = load_dataset('sst2')
+
+    df_train = pd.DataFrame(dataset['train'])
+    # df_test = pd.DataFrame(dataset['test']) # All samples of this split of dataset has a label of -1 ! 
+    df_test = pd.DataFrame(dataset['validation']) # we took validation split as the test data
+
+    df_train = df_train.rename(columns={"sentence": "text"})
+    df_train = df_train.drop("idx", axis=1)
+    df_test = df_test.rename(columns={"sentence": "text"})
+    df_test = df_test.drop("idx", axis=1)
+
+    df_train.to_csv('data/tcls_datasets/sst2_train.csv')
+    df_test.to_csv('data/tcls_datasets/sst2_test.csv')
+
+def clean_sst2():
+    dataset = load_dataset('sst2')
+
+    df_train = pd.DataFrame(dataset['train'])
+    # df_test = pd.DataFrame(dataset['test']) # All samples of this split of dataset has a label of -1 ! 
+    df_test = pd.DataFrame(dataset['validation']) # we took validation split as the test data
+
+    df_train = df_train.rename(columns={"sentence": "text"})
+    df_train = df_train.drop("idx", axis=1)
+    df_test = df_test.rename(columns={"sentence": "text"})
+    df_test = df_test.drop("idx", axis=1)
+
+    df_train.to_csv('data/tcls_datasets/sst2_train.csv')
+    df_test.to_csv('data/tcls_datasets/sst2_test.csv')
+
 if __name__ == "__main__":
-    clean_small_imdb(1000) # change dataset name to test functions
+    create_sample_data() # change dataset name to test functions
 
 

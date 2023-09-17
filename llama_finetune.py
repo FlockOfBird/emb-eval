@@ -1,101 +1,150 @@
 import logging
 import json
+from tqdm.auto import tqdm
 
-import torch
-from transformers import LlamaTokenizer, LlamaForSequenceClassification, TrainingArguments, Trainer,TFTrainer, DataCollatorWithPadding
+import evaluate
+
+from transformers import LlamaTokenizer, LlamaForSequenceClassification, TrainingArguments, Trainer, TFTrainer, DataCollatorWithPadding, get_scheduler
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
-
+import torch.distributed as dist
 from datasets import load_metric
 
 from accelerate import infer_auto_device_map
 
-from data import get_imdb, get_small_imdb
+from data import *
 
 # logging configuration for better code monitoring
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
-
-
 PATH_TO_CONVERTED_WEIGHTS = "./llama_converted/7B/"
 
 logging.info('loading dataset')
-train_data, test_data = get_small_imdb(500)
+db = get_small_dataset("imdb")
+train_data, test_data = db["train"], db["train"]
 
 # Use GPU runtime an High_RAM before run this pieace of code
 print('if cuda is available:', torch.cuda.is_available())  # Default CUDA device
 print('current cuda device:', torch.cuda.current_device())  # returns 0 in my case
-print('number of cuda devices', torch.cuda.device_count()) 
+print('number of cuda devices', torch.cuda.device_count())
 
 logging.info('loading model and tokenizer')
-device = "balanced" # balanced_low_0, auto, balanced, sequential
-print("loading llama 30B takes much longer time due to GPU management issues.")
-llama_model = LlamaForSequenceClassification.from_pretrained(
-    PATH_TO_CONVERTED_WEIGHTS,
-    device_map=device,
-    max_memory={0: "12GiB", 1: "12GiB", 2:"12GiB", 3:"12GiB"},
-    offload_folder="offload",
-    num_labels=2
-)
-# llama_model = LlamaForSequenceClassification.from_pretrained(
+
+device = "auto"  # balanced_low_0, auto, balanced, sequential
+
+# model = LlamaForSequenceClassification.from_pretrained(
 #     PATH_TO_CONVERTED_WEIGHTS,
-#     device_map="auto",
+#     device_map=device,
+#     max_memory={0: "0GiB", 1: "0GiB", 2: "15GiB", 3: "15GiB"},
+#     offload_folder="offload",
 #     num_labels=2
 # )
 
-llama_tokenizer = LlamaTokenizer.from_pretrained(PATH_TO_CONVERTED_WEIGHTS)
+model = LlamaForSequenceClassification.from_pretrained(
+    PATH_TO_CONVERTED_WEIGHTS,
+    device_map=device,
+    num_labels=2
+)
+# model.cuda()
 
+
+def list_model_layers(model):
+    # Get all of the model's parameters as a list of tuples.
+    params = list(model.named_parameters())
+    print('The LLaMA model has {:} different named parameters.\n'.format(
+        len(params)))
+    for p in params:
+        print("{:<55} {:>12}".format(p[0], str(tuple(p[1].size()))))
+
+
+llama_tokenizer = LlamaTokenizer.from_pretrained(
+    PATH_TO_CONVERTED_WEIGHTS, model_max_length=512)
 llama_tokenizer.pad_token_id = (
     0  # unknow tokens. we want this to be different from the eos token
 )
 llama_tokenizer.padding_side = "left"
 
-# def finetune_pytorch(model):
 logging.info('tokenizing and loading data into gpus')
+
+
 def preprocess_function(examples):
-    return llama_tokenizer(examples["text"], truncation=True)
+    return llama_tokenizer(examples["text"], padding="max_length", truncation=True)
+
 
 tokenized_train = train_data.map(preprocess_function, batched=True)
 tokenized_test = test_data.map(preprocess_function, batched=True)
 
-tokenized_train = DataLoader(
-    tokenized_train,
-    batch_size=64,
-    shuffle=True,
-    num_workers=4,
-    pin_memory=True
-)
-tokenized_test = DataLoader(
-    tokenized_test,
-    batch_size=64,
-    shuffle=True,
-    num_workers=4,
-    pin_memory=True
-)
-
-optimizer = AdamW(llama_model.parameters(), lr=3e-4)
-# llama_model = nn.DataParallel(llama_model, device_ids=[0, 1, 2, 3])
-
-# device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-device = "auto"
-print(device)
-# llama_model.to(device)
+optimizer = AdamW(model.parameters(), lr=3e-4)
 
 
+def reset_everything():
+    del model
+    torch.cuda.empty_cache()
 
-def finetune_huggingface():
-    def preprocess_function(examples):
-        return llama_tokenizer(examples["text"], truncation=True)
 
-    tokenized_train = train_data.map(preprocess_function, batched=True)
-    tokenized_test = test_data.map(preprocess_function, batched=True)
+def finetune_pytorch(tokenized_train, tokenized_test, optimizer):
+    # remove unrelated columns
+    tokenized_train = tokenized_train.remove_columns(["text", "Unnamed: 0"])
+    tokenized_test = tokenized_test.remove_columns(["text",  "Unnamed: 0"])
+    # rename label
+    tokenized_train = tokenized_train.rename_column("label", "labels")
+    tokenized_test = tokenized_test.rename_column("label", "labels")
+
+    tokenized_train.set_format("torch")
+    tokenized_test.set_format("torch")
+
+    train_dataloader = DataLoader(tokenized_train, shuffle=True, batch_size=8)
+    test_dataloader = DataLoader(tokenized_test, batch_size=8)
+
+    num_epochs = 3
+    num_training_steps = num_epochs * len(train_dataloader)
+    print('bulding scheduler')
+    lr_scheduler = get_scheduler(
+        name="linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
+    )
+    progress_bar = tqdm(range(num_training_steps))
+    print('change the model mode to train')
+    model.train()
+
+    for epoch in range(num_epochs):
+        for batch in train_dataloader:
+            batch = {k: v.to('cuda:0') for k, v in batch.items()}
+            input = {
+                'labels': batch['labels'].to('cuda'),
+                'input_ids': batch['input_ids'].to('cuda'),
+                'attention_mask': batch['attention_mask'].to('cuda')
+            }
+            outputs = model(**input)
+            loss = outputs.loss
+            loss.backward()
+            optimizer.step()
+            lr_scheduler.step()
+            optimizer.zero_grad()
+            progress_bar.update(1)
+
+    metric = evaluate.load("accuracy")
+
+    model.eval()
+    for batch in test_dataloader:
+        batch = {k: v.to('cuda:0') for k, v in batch.items()}
+        with torch.no_grad():
+            outputs = model(**batch)
+        logits = outputs.logits
+        predictions = torch.argmax(logits, dim=-1)
+        metric.add_batch(predictions=predictions, references=batch["labels"])
+
+    metric.compute()
+
+
+def finetune_huggingface(tokenized_train, tokenized_test, optimizer):
 
     data_collator = DataCollatorWithPadding(tokenizer=llama_tokenizer)
-
     # Define the evaluation metrics
+
     def compute_metrics(eval_pred):
         load_accuracy = load_metric("accuracy")
         load_f1 = load_metric("f1")
@@ -109,6 +158,7 @@ def finetune_huggingface():
 
     # Define a new Trainer with all the objects we constructed so far
     OUTPUT_PATH = './finetuned_llama'
+
     training_args = TrainingArguments(
         output_dir=OUTPUT_PATH,
         learning_rate=3e-4,
@@ -120,10 +170,10 @@ def finetune_huggingface():
         weight_decay=0.01,
         save_strategy="epoch"
     )
-    print('device:',training_args.device)
 
     trainer = Trainer(
-        model=llama_model,
+        model=model,
+        strategy='ddp_sharded',
         args=training_args,
         train_dataset=tokenized_train,
         eval_dataset=tokenized_test,
@@ -131,11 +181,6 @@ def finetune_huggingface():
         data_collator=data_collator,
         compute_metrics=compute_metrics
     )
-
-    # trainer.args._n_gpu = 4
-    # print(trainer)
-    # print(trainer.args)
-    # print(dir(trainer))
 
     # Train the model
     trainer.train()
@@ -155,7 +200,8 @@ def finetune_huggingface():
 
 
 logging.info('finetuning model')
-scores = finetune_huggingface()
+# scores = finetune_huggingface(tokenized_train, tokenized_test, optimizer)
+scores = finetune_pytorch(tokenized_train, tokenized_test, optimizer)
 
 # Save the scores to a JSON file
 with open('results/llama_finetune_results.json', 'w') as file:

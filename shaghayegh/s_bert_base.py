@@ -9,7 +9,7 @@ import tensorflow as tf
 import numpy as np
 import pandas as pd
 
-from data import *
+from data_bio import get_bio_dataset
 
 
 class Bert_Embeddings:
@@ -18,11 +18,11 @@ class Bert_Embeddings:
         logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
         logging.info('loading model and tokenizer')
-        # The base Bert Model transformer outputting raw hidden-states without any specific head on top.
+
         self.model_name = model_name
         self.model = BertModel.from_pretrained("bert-base-uncased",
                                                 # output_hidden_states = True
-                                                ) # Whether the model returns all hidden-states.)
+                                                )
         self.model.to("cuda")
         self.model.eval()
         self.tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
@@ -62,19 +62,6 @@ class Bert_Embeddings:
                 with torch.no_grad():
                     outputs = self.model(input_ids, token_type_ids=token_type_ids)
                     embedding = torch.mean(outputs.last_hidden_state, dim=1)
-                    # hidden_states = outputs[2]
-                    # print ("Number of layers:", len(hidden_states), "  (initial embeddings + 12 BERT layers)")
-                    # layer_i = 0
-                    # print ("Number of batches:", len(hidden_states[layer_i]))
-                    # batch_i = 0
-                    # print ("Number of tokens:", len(hidden_states[layer_i][batch_i]))
-                    # token_i = 0
-                    # print ("Number of hidden units:", len(hidden_states[layer_i][batch_i][token_i]))
-
-                    # print(data_row['text'])
-                    # print(outputs.last_hidden_state.shape)
-                    # print(embedding.shape)
-                    # embedding = torch.mean(outputs[2][1:], dim=1)
                     embedding = embedding.squeeze().to("cpu")
                     embeddings_train.append(np.array(embedding))
                 
@@ -105,13 +92,10 @@ class Bert_Embeddings:
                     logging.info('saving train data embeddings')
                     embeddings_train = np.array(embeddings_train)
                     train_data = pd.concat([pd.DataFrame(self.train_data), pd.DataFrame(embeddings_train)], axis=1)
-                    train_data.to_csv(f'results/embeddings/{self.model_name}_{self.dataset_name}_embeddings_train.csv', sep='\t')
+                    train_data.to_csv(f'results/{self.model_name}_{self.dataset_name}_embeddings_train.csv', sep='\t')
         
         if (save_embeddings and embed_test_data):
             logging.info('saving test data embeddings')
             embeddings_test = np.array(embeddings_test)
             test_data = pd.concat([pd.DataFrame(self.test_data), pd.DataFrame(embeddings_test)], axis=1)
-            test_data.to_csv(f'results/embeddings/{self.model_name}_{self.dataset_name}_embeddings_test.csv', sep='\t')
-
-# if __name__ == "__main__":
-#     bert_embeddings = Bert_Embeddings("bert", "imdb")
+            test_data.to_csv(f'results/{self.model_name}_{self.dataset_name}_embeddings_test.csv', sep='\t')

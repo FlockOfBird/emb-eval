@@ -1,3 +1,9 @@
+import deepchem as dc
+from datasets import load_dataset, DatasetDict
+import numpy as np
+import pandas as pd
+from rdkit import Chem
+
 def clean_smiles():
     '''
         This file consists of 11,583 training and 0 testing samples of drugIDs and their SMILES code that contain 3 columns. 
@@ -75,3 +81,15 @@ def get_small_drugdiscription(instance_number):
         [i for i in list(range(int(instance_number/10)))])
 
     return small_train_dataset, small_test_dataset
+
+def get_bio_dataset(data_name):
+    PATH = f'data/bio/{data_name}.csv'
+    dataset = load_dataset('csv', data_files=PATH, sep='\t')
+    dataset["test"] = None
+
+    dataset = DatasetDict({
+        "train": dataset["train"],
+        "test": dataset["test"]
+    })
+
+    return dataset

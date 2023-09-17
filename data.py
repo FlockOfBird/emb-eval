@@ -1,5 +1,7 @@
 from datasets import load_dataset, DatasetDict, Dataset
 import pandas as pd
+import numpy as np
+
 
 def get_dataset(dataset_name):
 
@@ -16,23 +18,22 @@ def get_dataset(dataset_name):
 
     return dataset
 
-def get_small_dataset(dataset_name, instance_number=1000):
+
+def get_small_dataset(dataset_name, instance_number=1500):
     '''
     arguments:
-        instance_number: number of desired instances from original agnews for train. test size will be n/10 of this number.
+        instance_number: number of desired instances from original dataset for training data size.
     '''
     dataset = get_dataset(dataset_name)
-    
-    # Create a smaller training dataset for faster training times
-    small_train_dataset = dataset["train"].shuffle(seed=42).select(
-        [i for i in list(range(int(instance_number)))])
-    small_test_dataset = dataset["test"].shuffle(seed=42).select(
-        [i for i in list(range(int(instance_number/10)))])
 
-    dataset = DatasetDict({
-        "train": small_train_dataset,
-        "test": small_test_dataset
+    # Create a smaller training dataset for faster training times
+    df_train = pd.DataFrame(dataset['train']).sample(frac=1).reset_index(drop=True)
+    per_class_train = np.round(instance_number / df_train.label.nunique()).astype(int)
+    df_train = df_train.groupby('label').head(per_class_train).sample(frac=1).reset_index(drop=True)
+
+    small_dataset = DatasetDict({
+        "train": Dataset.from_pandas(df_train),
+        "test": dataset['test']
     })
 
-    return dataset
-
+    return small_dataset
