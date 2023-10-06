@@ -38,8 +38,7 @@ class Llama_Embeddings:
         device = "auto"  # balanced_low_0, auto, balanced, sequential
 
         if model_name == "llama-310B":
-            print(
-                "loading llama 30B takes much longer time due to GPU management issues.")
+            print("loading llama 30B takes much longer time due to GPU management issues.")
             self.model = LlamaForCausalLM.from_pretrained(
                 PATH_TO_CONVERTED_WEIGHTS,
                 device_map=device,
@@ -64,13 +63,10 @@ class Llama_Embeddings:
         for dataset in self.datasets:
             print('>>>>>>>>', self.model_name, dataset, '<<<<<<<<')
             self.dataset_name = dataset
-            print('dataset_name',self.dataset_name)
-            dataset = get_small_dataset(dataset)
+            dataset = get_small_bio_dataset(dataset)
             self.train_data, self.test_data = dataset["train"], dataset["test"]
-            train_embeddings = self.get_embeddings(
-                self.train_data, self.dataset_name+'_train', save_embeddings=True)
-            test_embeddings = self.get_embeddings(
-                self.test_data, self.dataset_name+'_test', save_embeddings=True)
+            train_embeddings = self.get_embeddings(self.train_data, self.dataset_name+'_train', save_embeddings=True)
+            # test_embeddings = self.get_embeddings(self.test_data, self.dataset_name+'_test', save_embeddings=True)
 
     def get_embeddings(self, dataset, dataset_name, save_embeddings):
         logging.info('encoding data and generating embeddings for test/train')
@@ -80,7 +76,7 @@ class Llama_Embeddings:
         '''
 
         embeddings = []
-        for data_row in tqdm(self.train_data):
+        for data_row in tqdm(dataset):
             # tokens = self.tokenizer(data_row['text'])
             # input_ids = tokens['input_ids']
             # using get_input_embedding method
@@ -93,22 +89,26 @@ class Llama_Embeddings:
 
             #     embeddings.append(embedding)
 
-            tokens = self.tokenizer(
-                data_row['text'], padding=True, truncation=True, return_tensors='pt')
-            with torch.no_grad():
-                output = self.model(**tokens, return_dict=True)
-                embedding = torch.mean(output.hidden_states[-1], 1)
-                embeddings.append(embedding[0])
+            if(data_row['SMILES'] is not None):
+                tokens = self.tokenizer(data_row['SMILES'], padding=True, truncation=True, return_tensors='pt')
+                with torch.no_grad():
+                    output = self.model(**tokens, return_dict=True)
+                    embedding = torch.mean(output.hidden_states[-1], 1)
+                    embeddings.append(embedding[0])
+            else:
+                embeddings.append(None)
 
         if (save_embeddings):
-            logging.info('saving train data embeddings')
+            logging.info('saving data embeddings')
             embeddings = np.array(embeddings)
-            embeddings = pd.concat(
-                [pd.DataFrame(self.train_data), pd.DataFrame(embeddings)], axis=1)
-            path = f'results/embeddings/{self.model_name}_{dataset_name}_embeddings.csv'
-            print('saving embeddings to', path)
-            print(embeddings.head)
-            embeddings.to_csv(path, sep='\t')
+            print(pd.DataFrame(dataset))
+
+            # embeddings = pd.concat([pd.DataFrame(dataset).drop(["__index_level_0__"], axis=1), pd.DataFrame(embeddings)], axis=1)
+            # for bio data:
+            embeddings = pd.concat([pd.DataFrame(dataset), pd.DataFrame(embeddings)], axis=1)
+            print(embeddings)
+            path = f'results/bio/{self.model_name}_{dataset_name}_embeddings.csv'
+            embeddings.to_csv(path, sep='\t', index=False)
 
         return embeddings
 

@@ -123,9 +123,11 @@ def clean_yelpf():
 
     df_test = pd.read_csv(PATH_TEST)
     df_test.columns = ["label", "text"]
+    print(df_test)
+    print(df_train)
 
-    df_train.to_csv('data/tcls_datasets/yelpf_train.csv')
-    df_test.to_csv('data/tcls_datasets/yelpf_test.csv')
+    # df_train.to_csv('data/tcls_datasets/yelpf_train.csv')
+    # df_test.to_csv('data/tcls_datasets/yelpf_test.csv')
 
 def clean_sst():
     dataset = load_dataset('sst2')
@@ -158,6 +160,6 @@ def clean_sst2():
     df_test.to_csv('data/tcls_datasets/sst2_test.csv')
 
 if __name__ == "__main__":
-    create_sample_data() # change dataset name to test functions
+    clean_yelpf() # change dataset name to test functions
 
 

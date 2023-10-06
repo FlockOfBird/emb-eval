@@ -5,6 +5,16 @@ Write your tests here...
 import pandas as pd
 import os
 import glob
+file = '/home/foroogh/llama_embedding/results/eval_results.csv'
+df = pd.read_csv(file, sep='\t')
+#define how to aggregate various fields
+agg_functions = {'employee': 'first', 'sales': 'sum', 'returns': 'sum'}
+
+#create new DataFrame by combining rows with same id values
+df_new = df.groupby(df['model_name'])
+
+#view new DataFrame
+print(df_new)
 
 # f1_mlp, accuracy_mlp, error_rate_mlp = None, None, None
 # if ("mlp" in classifiers):
