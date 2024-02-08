@@ -1,0 +1,464 @@
+[
+    {
+        "dataset": "mr",
+        "encoder": "bert-12and1",
+        "whitening": "",
+        "accuracy": 81.47,
+        "accuracy_list": [
+            81.58,
+            81.37
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "bert-12and1",
+        "whitening": "zca",
+        "accuracy": 79.6,
+        "accuracy_list": [
+            79.38,
+            79.82
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "bert-12and1",
+        "whitening": "zca-cor",
+        "accuracy": 79.6,
+        "accuracy_list": [
+            79.38,
+            79.82
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "bert-12and1",
+        "whitening": "pca",
+        "accuracy": 79.6,
+        "accuracy_list": [
+            79.38,
+            79.82
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "bert-12and1",
+        "whitening": "pca-cor",
+        "accuracy": 79.6,
+        "accuracy_list": [
+            79.38,
+            79.82
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "bert-12and1",
+        "whitening": "cholesky",
+        "accuracy": 79.6,
+        "accuracy_list": [
+            79.38,
+            79.82
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "sbert-all-mpnet-base-v2",
+        "whitening": "",
+        "accuracy": 84.94,
+        "accuracy_list": [
+            84.84,
+            85.03
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "sbert-all-mpnet-base-v2",
+        "whitening": "zca",
+        "accuracy": 82.31,
+        "accuracy_list": [
+            82.72,
+            81.9
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "sbert-all-mpnet-base-v2",
+        "whitening": "zca-cor",
+        "accuracy": 82.24,
+        "accuracy_list": [
+            82.74,
+            81.73
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "sbert-all-mpnet-base-v2",
+        "whitening": "pca",
+        "accuracy": 82.31,
+        "accuracy_list": [
+            82.72,
+            81.9
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "sbert-all-mpnet-base-v2",
+        "whitening": "pca-cor",
+        "accuracy": 82.24,
+        "accuracy_list": [
+            82.74,
+            81.73
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "sbert-all-mpnet-base-v2",
+        "whitening": "cholesky",
+        "accuracy": 82.31,
+        "accuracy_list": [
+            82.72,
+            81.9
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "angle-bert",
+        "whitening": "",
+        "accuracy": 81.96,
+        "accuracy_list": [
+            81.92,
+            81.99
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "angle-bert",
+        "whitening": "zca",
+        "accuracy": 80.63,
+        "accuracy_list": [
+            80.53,
+            80.74
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "angle-bert",
+        "whitening": "zca-cor",
+        "accuracy": 80.63,
+        "accuracy_list": [
+            80.53,
+            80.74
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "angle-bert",
+        "whitening": "pca",
+        "accuracy": 80.63,
+        "accuracy_list": [
+            80.53,
+            80.74
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "angle-bert",
+        "whitening": "pca-cor",
+        "accuracy": 80.63,
+        "accuracy_list": [
+            80.53,
+            80.74
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "angle-bert",
+        "whitening": "cholesky",
+        "accuracy": 80.64,
+        "accuracy_list": [
+            80.53,
+            80.75
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "angle-llama",
+        "whitening": "",
+        "accuracy": 88.95,
+        "accuracy_list": [
+            88.61,
+            89.29
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "angle-llama",
+        "whitening": "zca",
+        "accuracy": 79.32,
+        "accuracy_list": [
+            79.59,
+            79.05
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "angle-llama",
+        "whitening": "zca-cor",
+        "accuracy": 79.32,
+        "accuracy_list": [
+            79.59,
+            79.05
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "angle-llama",
+        "whitening": "pca",
+        "accuracy": 79.32,
+        "accuracy_list": [
+            79.59,
+            79.05
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "angle-llama",
+        "whitening": "pca-cor",
+        "accuracy": 79.32,
+        "accuracy_list": [
+            79.59,
+            79.05
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "angle-llama",
+        "whitening": "cholesky",
+        "accuracy": 79.32,
+        "accuracy_list": [
+            79.59,
+            79.05
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "llama-7B",
+        "whitening": "",
+        "accuracy": 85.98,
+        "accuracy_list": [
+            85.89,
+            86.06
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "llama-7B",
+        "whitening": "zca",
+        "accuracy": 75.05,
+        "accuracy_list": [
+            75.2,
+            74.9
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "llama-7B",
+        "whitening": "zca-cor",
+        "accuracy": 75.05,
+        "accuracy_list": [
+            75.2,
+            74.9
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "llama-7B",
+        "whitening": "pca",
+        "accuracy": 75.05,
+        "accuracy_list": [
+            75.2,
+            74.9
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "llama-7B",
+        "whitening": "pca-cor",
+        "accuracy": 75.05,
+        "accuracy_list": [
+            75.2,
+            74.9
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "llama-7B",
+        "whitening": "cholesky",
+        "accuracy": 75.05,
+        "accuracy_list": [
+            75.2,
+            74.9
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "llama2-7B",
+        "whitening": "",
+        "accuracy": 85.95,
+        "accuracy_list": [
+            85.93,
+            85.97
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "llama2-7B",
+        "whitening": "zca",
+        "accuracy": 73.9,
+        "accuracy_list": [
+            73.74,
+            74.06
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "llama2-7B",
+        "whitening": "zca-cor",
+        "accuracy": 73.9,
+        "accuracy_list": [
+            73.74,
+            74.06
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "llama2-7B",
+        "whitening": "pca",
+        "accuracy": 73.9,
+        "accuracy_list": [
+            73.74,
+            74.06
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "llama2-7B",
+        "whitening": "pca-cor",
+        "accuracy": 73.9,
+        "accuracy_list": [
+            73.74,
+            74.06
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "llama2-7B",
+        "whitening": "cholesky",
+        "accuracy": 73.9,
+        "accuracy_list": [
+            73.74,
+            74.06
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "ChatGPT",
+        "whitening": "",
+        "accuracy": 88.88,
+        "accuracy_list": [
+            88.39,
+            89.36
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "ChatGPT",
+        "whitening": "zca",
+        "accuracy": 81.58,
+        "accuracy_list": [
+            81.62,
+            81.54
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "ChatGPT",
+        "whitening": "zca-cor",
+        "accuracy": 81.58,
+        "accuracy_list": [
+            81.62,
+            81.54
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "ChatGPT",
+        "whitening": "pca",
+        "accuracy": 81.58,
+        "accuracy_list": [
+            81.62,
+            81.54
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "ChatGPT",
+        "whitening": "pca-cor",
+        "accuracy": 81.58,
+        "accuracy_list": [
+            81.62,
+            81.54
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "mr",
+        "encoder": "ChatGPT",
+        "whitening": "cholesky",
+        "accuracy": 81.58,
+        "accuracy_list": [
+            81.62,
+            81.54
+        ],
+        "kfold": 2
+    }
+]

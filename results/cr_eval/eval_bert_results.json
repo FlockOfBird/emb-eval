@@ -1,0 +1,74 @@
+[
+    {
+        "dataset": "cr",
+        "encoder": "bert",
+        "whitening": "",
+        "accuracy": 87.23,
+        "IScore": 0.04945561992555946,
+        "accuracy_list": [
+            87.13,
+            87.33
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "cr",
+        "encoder": "bert",
+        "whitening": "zca",
+        "accuracy": 79.1,
+        "IScore": 0.9986763119166365,
+        "accuracy_list": [
+            79.4,
+            78.8
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "cr",
+        "encoder": "bert",
+        "whitening": "zca-cor",
+        "accuracy": 79.07,
+        "IScore": 0.9986962051404032,
+        "accuracy_list": [
+            79.34,
+            78.8
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "cr",
+        "encoder": "bert",
+        "whitening": "pca",
+        "accuracy": 79.1,
+        "IScore": 0.9986763119166365,
+        "accuracy_list": [
+            79.4,
+            78.8
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "cr",
+        "encoder": "bert",
+        "whitening": "pca-cor",
+        "accuracy": 79.07,
+        "IScore": 0.9986962051404032,
+        "accuracy_list": [
+            79.34,
+            78.8
+        ],
+        "kfold": 2
+    },
+    {
+        "dataset": "cr",
+        "encoder": "bert",
+        "whitening": "cholesky",
+        "accuracy": 79.1,
+        "IScore": 0.9986763119166365,
+        "accuracy_list": [
+            79.4,
+            78.8
+        ],
+        "kfold": 2
+    }
+]
